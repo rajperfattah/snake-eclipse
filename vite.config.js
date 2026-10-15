@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite';
+import { viteSingleFile } from 'vite-plugin-singlefile';
 
 export default defineConfig({
-  // Relative base path ensures GitHub Pages serves assets correctly under any repo name
+  plugins: [viteSingleFile()],
   base: './',
   build: {
     outDir: 'dist',
-    assetsDir: 'assets',
+    assetsInlineLimit: 100000000,
+    chunkSizeWarningLimit: 100000000,
+    cssCodeSplit: false,
   },
 });
