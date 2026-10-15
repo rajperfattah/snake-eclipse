@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SNAKE: ECLIPSE — Beyond the Void</title>
+    <!-- Google Fonts for futuristic cyberpunk aesthetic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <script>
+      // Protocol and WebGL safety checks
+      if (window.location.protocol === 'file:') {
+        window.addEventListener('DOMContentLoaded', () => {
+          const banner = document.createElement('div');
+          banner.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#03020a;color:#fff;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif;';
+          banner.innerHTML = `
+            <h1 style="color:#00f0ff;font-size:2rem;margin-bottom:12px;">🌌 SNAKE: ECLIPSE — Local Server Required</h1>
+            <p style="max-width:600px;font-size:1.1rem;color:#ccc;line-height:1.6;margin-bottom:24px;">
+              Modern browsers block 3D WebGL modules when opened directly from local files (<code>file:///</code> protocol) due to browser security restrictions.
+            </p>
+            <div style="background:rgba(0,240,255,0.1);border:1px solid #00f0ff;border-radius:8px;padding:16px 24px;margin-bottom:24px;">
+              <p style="margin-bottom:8px;font-weight:bold;">👉 Open this URL in your browser instead:</p>
+              <a href="http://localhost:5173/" style="color:#00f0ff;font-size:1.4rem;font-weight:bold;text-decoration:underline;">http://localhost:5173/</a>
+            </div>
+            <p style="color:#888;font-size:0.9rem;">Or double-click <strong>play.bat</strong> in the project folder to start automatically.</p>
+          `;
+          document.body.appendChild(banner);
+        });
+      }
+      window.addEventListener('error', (e) => {
+        console.error('Runtime error caught:', e.message);
+      });
+    </script>
+  </head>
+  <body>
+    <!-- Three.js Canvas Container -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Global Touch Zone for Mobile Gestures & Virtual Joystick -->
+    <div id="touch-zone"></div>
+
+    <!-- Virtual Joystick Visual Element -->
+    <div id="virtual-joystick">
+      <div id="joystick-knob"></div>
+    </div>
+
+    <!-- Holographic Floating Banner Notice -->
+    <div id="banner-notice" class="banner-notice"></div>
+
+    <!-- IN-GAME HUD -->
+    <div id="game-hud" class="screen-layer hidden">
+      <!-- Top Telemetry Bar -->
+      <div class="hud-top-bar">
+        <button id="btn-hud-back" class="hud-nav-btn" title="Return to Main Menu">◀ MENU</button>
+
+        <div class="hud-card hud-mode-card">
+          <span class="hud-label">OPERATIONAL MODE</span>
+          <span id="hud-mode-text" class="hud-val">CLASSIC ECLIPSE</span>
+        </div>
+
+        <div class="hud-card hud-score-card">
+          <span class="hud-label">COSMIC ENERGY SCORE</span>
+          <div class="score-display">
+            <span id="hud-score-val" class="hud-score-num">0</span>
+            <span id="hud-delta-score" class="score-delta"></span>
+          </div>
+        </div>
+
+        <div class="hud-card hud-best-card">
+          <span class="hud-label">SECTOR RECORD</span>
+          <span id="hud-best-val" class="hud-val cyan-glow">0</span>
+        </div>
+
+        <div class="hud-top-actions">
+          <button id="btn-hud-speed" class="hud-speed-btn" title="Toggle Speed: Slow / Normal / Fast">⚡ <span id="hud-speed-text">SPEED: NORM</span></button>
+          <button id="btn-hud-audio" class="hud-icon-btn" title="Toggle Audio">🔊</button>
+          <button id="btn-hud-pause" class="hud-icon-btn" title="Pause Game (ESC / P)">⏸</button>
+        </div>
+      </div>
+
+      <!-- Left Widget: Combo Multiplier -->
+      <div class="hud-left-widget">
+        <div class="combo-box">
+          <span class="combo-title">COMBO MULTIPLIER</span>
+          <div class="combo-badge-row">
+            <span id="hud-combo-val" class="combo-badge">x1</span>
+            <span class="combo-label">SURGE</span>
+          </div>
+          <div class="combo-gauge-track">
+            <div id="hud-combo-bar" class="combo-gauge-fill"></div>
+          </div>
+        </div>
+
+        <div class="cores-tracker">
+          <span class="mini-label">CORES CONSUMED</span>
+          <span id="hud-cores-val" class="mini-val">0</span>
+        </div>
+
+        <!-- Time Attack Timer (if active) -->
+        <div id="hud-time-container" class="time-box hidden">
+          <span class="mini-label">VOID COUNTDOWN</span>
+          <span id="hud-time-val" class="time-val">90s</span>
+        </div>
+      </div>
+
+      <!-- Right Widget: Phase Dash Ability Meter -->
+      <div class="hud-right-widget">
+        <div id="btn-hud-dash" class="ability-card">
+          <div class="ability-icon-ring">
+            <div id="hud-dash-cd-ring" class="ability-cd-overlay"></div>
+            <span class="ability-icon">⚡</span>
+          </div>
+          <div class="ability-info">
+            <span class="ability-title">PHASE DASH</span>
+            <span id="hud-dash-status" class="ability-status ready">ONLINE</span>
+            <span class="key-hint">[SPACE / SHIFT]</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile On-Screen Action Controls -->
+      <div id="mobile-controls-row" class="mobile-controls">
+        <button id="btn-mobile-dash" class="mobile-dash-btn">
+          <span>⚡</span>
+          <span class="dash-lbl">PHASE DASH</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN MENU SCREEN -->
+    <div id="menu-screen" class="screen-layer ui-active">
+      <div class="menu-glass-panel">
+        <!-- Top Status Bar -->
+        <div class="menu-top-telemetry">
+          <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span>NEBULA WARP SECTOR 09</span>
+          </div>
+          <div class="shards-indicator">
+            <span class="shard-icon">💎</span>
+            <span id="menu-shards-val" class="shard-count">100</span>
+            <span class="shard-label">VOID SHARDS</span>
+          </div>
+        </div>
+
+        <!-- Main Logo / Title -->
+        <div class="logo-container">
+          <div class="logo-sub">DEEP SPACE TACTICAL CHRONICLE</div>
+          <h1 class="game-title">SNAKE: ECLIPSE</h1>
+          <div class="title-accent">BEYOND THE VOID</div>
+        </div>
+
+        <!-- Menu Action Buttons -->
+        <div class="menu-actions-stack">
+          <button id="btn-menu-play" class="btn-primary glow-cyan">
+            <span class="btn-text">ENGAGE MISSION</span>
+            <span class="btn-sub">START GAMEPLAY [SPACE]</span>
+          </button>
+
+          <button id="btn-menu-modes" class="btn-secondary">
+            <span class="btn-icon">🌌</span>
+            <span>SELECT GAME MODE</span>
+          </button>
+
+          <button id="btn-menu-hangar" class="btn-secondary">
+            <span class="btn-icon">🛡️</span>
+            <span>SERPENT HANGAR & SKINS</span>
+          </button>
+
+          <button id="btn-menu-tutorial" class="btn-secondary">
+            <span class="btn-icon">🎓</span>
+            <span>FLIGHT ACADEMY / TUTORIAL</span>
+          </button>
+
+          <div class="menu-bottom-row">
+            <button id="btn-menu-settings" class="btn-tertiary">
+              <span>⚙️ SETTINGS</span>
+            </button>
+            <button id="btn-menu-credits" class="btn-tertiary">
+              <span>📜 ARCHIVES & HOW TO PLAY</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="menu-footer">
+          <span>CONTROLS: ARROW KEYS / WASD TO NAVIGATE &bull; SPACE FOR PHASE DASH &bull; P TO PAUSE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: GAME MODES -->
+    <div id="modal-modes" class="modal-layer hidden">
+      <div class="modal-content glass-card">
+        <div class="modal-header">
+          <h2>SELECT COSMIC MISSION</h2>
+          <button id="btn-close-modes" class="modal-close">&times;</button>
+        </div>
+        <div class="modes-grid">
+          <!-- Classic Mode -->
+          <div class="mode-card" data-mode="classic">
+            <div class="mode-card-header">
+              <span class="mode-icon">🌀</span>
+              <h3>CLASSIC ECLIPSE</h3>
+            </div>
+            <p>Pure tactical snake evolution. Grow your cybernetic serpent, navigate Quantum Gates, and establish the sector high score.</p>
+            <div class="mode-stat">RECORD: <span id="record-classic">0</span> PTS</div>
+            <button class="btn-mode-select">SELECT MODE</button>
+          </div>
+
+          <!-- Cosmic Survival Mode -->
+          <div class="mode-card highlight-purple" data-mode="survival">
+            <div class="mode-card-header">
+              <span class="mode-icon">☄️</span>
+              <h3>COSMIC SURVIVAL</h3>
+            </div>
+            <p>Extreme environmental warfare. Drifting singularity hazards, periodic Gravity Shifts, and high-energy Void Titan beams.</p>
+            <div class="mode-stat">RECORD: <span id="record-survival">0</span> PTS</div>
+            <button class="btn-mode-select">SELECT MODE</button>
+          </div>
+
+          <!-- Time Attack Mode -->
+          <div class="mode-card highlight-gold" data-mode="timeattack">
+            <div class="mode-card-header">
+              <span class="mode-icon">⏳</span>
+              <h3>TIME ATTACK</h3>
+            </div>
+            <p>90-second high-intensity rush. Maximize your combo multiplier with high-yield Solar Flare cores before time horizon collapse.</p>
+            <div class="mode-stat">RECORD: <span id="record-timeattack">0</span> PTS</div>
+            <button class="btn-mode-select">SELECT MODE</button>
+          </div>
+
+          <!-- Endless Eclipse Mode -->
+          <div class="mode-card highlight-green" data-mode="endless">
+            <div class="mode-card-header">
+              <span class="mode-icon">♾️</span>
+              <h3>ENDLESS ECLIPSE</h3>
+            </div>
+            <p>Zen cosmic voyage. Perimeter boundaries wrap around space seamlessly. No death from tail collision. Ideal for relaxation.</p>
+            <div class="mode-stat">RECORD: <span id="record-endless">0</span> PTS</div>
+            <button class="btn-mode-select">SELECT MODE</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: SERPENT HANGAR (SKINS) -->
+    <div id="modal-hangar" class="modal-layer hidden">
+      <div class="modal-content glass-card">
+        <div class="modal-header">
+          <h2>SERPENT HANGAR</h2>
+          <button id="btn-close-hangar" class="modal-close">&times;</button>
+        </div>
+        <div class="hangar-currency-bar">
+          <span>AVAILABLE VOID SHARDS:</span>
+          <span class="shard-count"><span class="shard-icon">💎</span> <strong id="hangar-shards-val">100</strong></span>
+        </div>
+        <div class="skins-grid">
+          <!-- Skin 0: Celestial White -->
+          <div class="skin-card active-skin" data-skin="white">
+            <div class="skin-swatch white-swatch"></div>
+            <h4>CELESTIAL WHITE</h4>
+            <p>Pristine titanium-pearl armor with radiant luminescent white energy veins.</p>
+            <span class="skin-price free">DEFAULT CHASSIS</span>
+            <button class="btn-skin-action" data-skin="white">EQUIPPED</button>
+          </div>
+
+          <!-- Skin 1 -->
+          <div class="skin-card" data-skin="cyan">
+            <div class="skin-swatch cyan-swatch"></div>
+            <h4>VOID CYAN</h4>
+            <p>Standard aerospace cyber-plating with high-frequency cyan energy veins.</p>
+            <span class="skin-price free">UNLOCKED</span>
+            <button class="btn-skin-action" data-skin="cyan">EQUIP</button>
+          </div>
+
+          <!-- Skin 2 -->
+          <div class="skin-card" data-skin="ultraviolet">
+            <div class="skin-swatch uv-swatch"></div>
+            <h4>ULTRAVIOLET PHANTOM</h4>
+            <p>Deep abyss obsidian armor infused with neon magenta dark-matter coils.</p>
+            <span class="skin-price">💎 150 SHARDS</span>
+            <button class="btn-skin-action" data-skin="ultraviolet" data-cost="150">UNLOCK</button>
+          </div>
+
+          <!-- Skin 3 -->
+          <div class="skin-card" data-skin="solar">
+            <div class="skin-swatch solar-swatch"></div>
+            <h4>SOLAR FLARE</h4>
+            <p>Forged in the heart of a blue giant star with radiant golden coronal discharge.</p>
+            <span class="skin-price">💎 250 SHARDS</span>
+            <button class="btn-skin-action" data-skin="solar" data-cost="250">UNLOCK</button>
+          </div>
+
+          <!-- Skin 4 -->
+          <div class="skin-card" data-skin="matrix">
+            <div class="skin-swatch matrix-swatch"></div>
+            <h4>MATRIX OVERDRIVE</h4>
+            <p>Sub-quantum neural matrix with glowing emerald logic traces.</p>
+            <span class="skin-price">💎 350 SHARDS</span>
+            <button class="btn-skin-action" data-skin="matrix" data-cost="350">UNLOCK</button>
+          </div>
+
+          <!-- Skin 5 -->
+          <div class="skin-card" data-skin="iridescent">
+            <div class="skin-swatch iridescent-swatch"></div>
+            <h4>SINGULARITY CHROMATIC</h4>
+            <p>Pristine diamond reflection armor refracting cosmic prism radiation.</p>
+            <span class="skin-price">💎 500 SHARDS</span>
+            <button class="btn-skin-action" data-skin="iridescent" data-cost="500">UNLOCK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: HOW TO PLAY & ARCHIVES -->
+    <div id="modal-credits" class="modal-layer hidden">
+      <div class="modal-content glass-card">
+        <div class="modal-header">
+          <h2>MISSION ARCHIVE & FLIGHT MANUAL</h2>
+          <button id="btn-close-credits" class="modal-close">&times;</button>
+        </div>
+        <div class="manual-sections">
+          <div class="manual-block">
+            <h3>🎮 TACTICAL NAVIGATION</h3>
+            <p>Use <strong>W/A/S/D</strong> or <strong>Arrow Keys</strong> to steer the cybernetic serpent. On mobile or touchscreen devices, swipe in any direction or drag the dynamic virtual joystick.</p>
+          </div>
+          <div class="manual-block">
+            <h3>⚡ PHASE DASH ABILITY</h3>
+            <p>Press <strong>Spacebar</strong>, <strong>Shift</strong>, or tap the on-screen <strong>Phase Dash</strong> button. Your serpent accelerates into hyperspace for 0.45s, becoming completely invulnerable and passing through your own tail, perimeter walls, and hazard mines!</p>
+          </div>
+          <div class="manual-block">
+            <h3>🌀 QUANTUM GATES (PORTALS)</h3>
+            <p>Traversing portal Alpha transports the serpent head instantaneously to portal Beta, maintaining kinetic momentum and allowing tactical escape from tight perimeter traps.</p>
+          </div>
+          <div class="manual-block">
+            <h3>💎 ENERGY CORE CLASSIFICATIONS</h3>
+            <ul>
+              <li><strong class="cyan-text">Quantum Core (Cyan):</strong> Primary evolution core. Extends serpent length, +100 base score.</li>
+              <li><strong class="gold-text">Solar Flare Core (Gold):</strong> High-yield core. +300 points, triggers 6s Solar Frenzy with 2x multipliers.</li>
+              <li><strong class="purple-text">Dark Matter Core (Violet):</strong> Singularity orb. Compresses serpent length by 2 segments and shields against hazards.</li>
+              <li><strong class="green-text">Chrono Core (Emerald):</strong> Dilates spacetime for 6.5s, allowing pinpoint precision at bullet-time speeds.</li>
+            </ul>
+          </div>
+          <div class="manual-block">
+            <h3>🔥 COMBO SURGE & CLOSE CALLS</h3>
+            <p>Collecting cores within rapid intervals advances your Combo Multiplier up to <strong>x5 Surge</strong>. Slithering within 1 tile of self-collision triggers the <strong>Close Call (+25 pts)</strong> near-miss reward!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: SETTINGS -->
+    <div id="modal-settings" class="modal-layer hidden">
+      <div class="modal-content glass-card settings-card">
+        <div class="modal-header">
+          <h2>SYSTEM SETTINGS</h2>
+          <button id="btn-close-settings" class="modal-close">&times;</button>
+        </div>
+        <div class="settings-list">
+          <div class="setting-item">
+            <label for="select-speed">SNAKE VELOCITY / SPEED</label>
+            <select id="select-speed" class="cyber-select">
+              <option value="slow">Relaxed (Slow / Easy)</option>
+              <option value="normal" selected>Balanced (Normal)</option>
+              <option value="fast">Turbo (Fast / Pro)</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="slider-master">MASTER VOLUME</label>
+            <input type="range" id="slider-master" min="0" max="1" step="0.05" value="0.8" />
+          </div>
+          <div class="setting-item">
+            <label for="slider-sfx">SFX SYNTHESIZER</label>
+            <input type="range" id="slider-sfx" min="0" max="1" step="0.05" value="0.8" />
+          </div>
+          <div class="setting-item">
+            <label for="slider-music">COSMIC BGM MUSIC</label>
+            <input type="range" id="slider-music" min="0" max="1" step="0.05" value="0.5" />
+          </div>
+          <div class="setting-item">
+            <label for="toggle-screenshake">SCREEN SHAKE DYNAMICS</label>
+            <input type="checkbox" id="toggle-screenshake" checked />
+          </div>
+          <div class="setting-item">
+            <label for="toggle-joystick">MOBILE VIRTUAL JOYSTICK</label>
+            <input type="checkbox" id="toggle-joystick" checked />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAUSE OVERLAY -->
+    <div id="pause-screen" class="screen-layer hidden">
+      <div class="pause-card glass-card">
+        <h2 class="pause-title">TEMPORAL SUSPENSION</h2>
+        <div class="pause-subtitle">SYSTEM STATUS PAUSED</div>
+        <div class="pause-buttons">
+          <button id="btn-pause-resume" class="btn-primary">RESUME MISSION</button>
+          <button id="btn-pause-restart" class="btn-secondary">RESTART SECTOR</button>
+          <button id="btn-pause-menu" class="btn-tertiary">ABORT TO HANGAR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="gameover-screen" class="screen-layer hidden">
+      <div class="gameover-card glass-card">
+        <div class="go-header">
+          <div class="go-alert">ANOMALY WARNING</div>
+          <h2 id="go-reason-title">MISSION TERMINATED</h2>
+          <div id="go-record-badge" class="new-record-badge hidden">⭐ NEW SECTOR RECORD! ⭐</div>
+        </div>
+
+        <div class="go-stats-grid">
+          <div class="go-stat-tile">
+            <span class="go-stat-label">FINAL SCORE</span>
+            <span id="go-final-score" class="go-stat-val cyan-glow">0</span>
+          </div>
+          <div class="go-stat-tile">
+            <span class="go-stat-label">RECORD HIGH</span>
+            <span id="go-record-high" class="go-stat-val">0</span>
+          </div>
+          <div class="go-stat-tile">
+            <span class="go-stat-label">CORES CONSUMED</span>
+            <span id="go-cores" class="go-stat-val">0</span>
+          </div>
+          <div class="go-stat-tile">
+            <span class="go-stat-label">PEAK COMBO</span>
+            <span id="go-max-combo" class="go-stat-val">x1</span>
+          </div>
+          <div class="go-stat-tile">
+            <span class="go-stat-label">SURVIVAL TIME</span>
+            <span id="go-time" class="go-stat-val">0s</span>
+          </div>
+          <div class="go-stat-tile">
+            <span class="go-stat-label">VOID SHARDS EARNED</span>
+            <span id="go-shards-earned" class="go-stat-val gold-text">+0 💎</span>
+          </div>
+        </div>
+
+        <div class="go-rank-box">
+          <span class="rank-label">PILOT RANK ACQUIRED:</span>
+          <span id="go-rank-name" class="rank-name">VOID VANGUARD</span>
+        </div>
+
+        <div class="go-actions">
+          <button id="btn-go-retry" class="btn-primary glow-cyan">
+            <span>RE-ENGAGE MISSION [SPACE]</span>
+          </button>
+          <button id="btn-go-menu" class="btn-secondary">
+            <span>RETURN TO HANGAR</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
